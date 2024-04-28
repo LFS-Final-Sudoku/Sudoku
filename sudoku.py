@@ -1,4 +1,5 @@
 from z3 import *
+from visualizer import main
 
 def get_grid(N, L, model):
     """Consumes `N` (size of the board), `L` (dict mapping indices to z3 variables), `model` (z3 model)
@@ -37,7 +38,7 @@ class Sudoku(object):
         start_col = (col // 3) * 3
         section = []
         for i in range(start_row, start_row + 3):
-            section.append(self.L[(i,start_col)]) 
+            section.append(self.L[(i,start_col)])
             section.append(self.L[(i,start_col +1)])
             section.append(self.L[(i,start_col +2)])
         return section
@@ -96,7 +97,7 @@ class Sudoku(object):
         # Here, `self.N` is the size of the board, and `self.game_data` is the game data
         # Feel free to use `self.s.push()` and `self.s.pop()` across `solve` and `check_multiple`
         # to reset constraints if you don't want to reuse them in `check_multiple`
-       
+
         self.s.add(ans != solve())
         # Check for PART 2
         result = self.s.check()
@@ -108,10 +109,7 @@ if __name__ == "__main__":
     ]
 
     sudoku = Sudoku(9, game_data_example)
-    
-    # PART 1
-    ans = sudoku.solve()
-    print_grid(ans)
 
-    # PART 2
-    #print(kenken.check_multiple(ans))
+    ans = sudoku.solve()
+    main(ans)
+    print_grid(ans)

@@ -1,6 +1,6 @@
 from z3 import *
-from visualizer import main
-from random import sample
+from visualizer import visualize
+from random import sample, randrange
 
 def get_grid(N, L, model):
     """Consumes `N` (size of the board), `L` (dict mapping indices to z3 variables), `model` (z3 model)
@@ -23,6 +23,7 @@ def print_grid(grid):
 class Sudoku(object):
     def __init__(self, N):
         """Constructor of this class"""
+        assert int(N ** (1/2)) == N ** (1/2)
         self.N = N
 
         # Solver
@@ -37,8 +38,9 @@ class Sudoku(object):
         else:
             return None
     
-    def get_3x3_section(self, row, col):
-        return (row // 3) * 3 + (col // 3)
+    def get_mini_section(self, row, col):
+        section_size = self.N ** (1/2)
+        return (row // section_size) * section_size + (col // section_size)
     
     def create_board(self, known_cells = [], no_fill = True):
         self.board_count += 1
@@ -57,7 +59,7 @@ class Sudoku(object):
                     for l in range(self.N):
                         if i == k and j == l:
                             continue
-                        if i == k or j == l or self.get_3x3_section(i, j) == self.get_3x3_section(k, l):
+                        if i == k or j == l or self.get_mini_section(i, j) == self.get_mini_section(k, l):
                             self.s.add(Or(
                                 board[(i, j)] == -1, board[(k, l)] == -1, 
                                 board[(i, j)] != board[(k, l)]))
@@ -100,9 +102,10 @@ def remove_values(board, num_to_remove):
     return board_copy
 
 def generate_random_starting_board(N, num_unfilled):
-    sudoku = Sudoku(9)
-    first_row = sample(range(1, N + 1), N)
-    known_cells = [first_row] + [[-1 for _ in range(N)] for _ in range(N - 1)]
+    sudoku = Sudoku(N)
+    random_row = sample(range(1, N + 1), N)
+    known_cells = [[-1 for _ in range(N)] for _ in range(N)]
+    known_cells[randrange(0, N)] = random_row
     board = sudoku.generate_solved_board(known_cells)
     return remove_values(board, num_unfilled)
 
@@ -132,12 +135,12 @@ def apply_strategy(sudoku, initial, guesses=[], constraint_map=[], steps = 0, ma
     sudoku.guess_cell(pre, post)
     post_board = sudoku.solve(post)
     if use_visualizer:
-        main(pre_board)
+        visualize(pre_board)
     while post_board is not None:
         pre_board = sudoku.solve(pre)
         difference = get_board_difference(pre_board, post_board)
         if use_visualizer:
-            main(post_board, [difference])
+            visualize(post_board, [difference])
         if not any([-1 in row for row in post_board]):
             print("terminated by solving")
             return steps # board solved
@@ -173,8 +176,9 @@ def time_strategy(trials, N, num_unfilled, max_steps_per_trial):
     trial_steps = []
     while len(trial_steps) < trials:
         board = generate_random_starting_board(N, num_unfilled)
-        steps_taken = apply_strategy(sudoku, board, max_steps=max_steps_per_trial)
+        steps_taken = apply_strategy(sudoku, board, max_steps=max_steps_per_trial, use_visualizer=False)
         trial_steps.append(steps_taken)
+        print(f"Trial {len(trial_steps)}: {steps_taken}")
     return sum(trial_steps) / trials
 
 
@@ -197,5 +201,8 @@ if __name__ == "__main__":
     # backtracking example
     game_data_example = [[5, 1, 7, 6, 9, 8, 2, None, 4], [2, 8, 9, 1, None, None, 7, None, 6], [3, 4, 6, 2, 7, 5, 8, 9, 1], [6, 7, 2, 8, 4, 9, 3, 1, 5], [1, 3, 8, 5, 2, 6, 9, 4, 7], [9, 5, 4, 7, 1, 3, 6, 8, 2], [4, 9, 5, 3, 6, 2, 1, 7, 8], [7, 2, 3, 4, 8, 1, 5, 6, 9], [8, 6, 1, 9, 5, 7, 4, 2, 3]]
 
-    average_steps = time_strategy(5, 9, 12, 100)
+    # apply_strategy(Sudoku(9), game_data_example)  
+
+    average_steps = time_strategy(5, 4, 10, 100)
     print(f"Average steps: {average_steps}")
+

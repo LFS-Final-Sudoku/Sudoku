@@ -88,6 +88,61 @@ class Sudoku(object):
         # Constraint enforcing that exactly one square has changed
         self.s.add(PbEq([(x,1) for x in constraints], 1))
 
+    # should return the count as well as the row, col so guess_cell can be constrained to
+    # row call with highest count 
+    # def possible_values(self, pre, post, row, col, constraints, constraint_list):
+    #     count = 0
+       
+    #     if sudoku.solve(post) is None:
+    #         return 0
+        
+    #     else:
+
+    #         constraint_list.append(post[(row, col)])
+    #         print(constraint_list)
+    #         self.s.push()
+    #         for value in constraint_list:
+    #             constraints.append(post[(row, col)] != value)
+    #         self.s.pop()
+    #         return 1 + sudoku.possible_values(pre, post, row, col, constraints, constraint_list)
+        
+
+    def possible_values(self, row, col, post):
+        # Base case: check if it is UNSAT, and if so, return 0
+        if sudoku.solve(post) is None:
+            return 0
+            
+        # Otherwise, read the value in the model at this row and column
+        model = self.s.model()
+        # This assumes that `self.variables` maps (row, col) -> Z3 var
+        # I totally made this up; use whatever dictionary/list you are using to store the Z3 vars
+        value = post[(row, col)]
+        
+        # Push so that we can (temporarily) add a constraint
+        self.s.push()
+        # Add the constraint that the value is actually different
+        self.s.add(post[(row, col)] != value)
+        # Count how many possibilities there are that are different from the value we recorded
+        count = self.possible_values(row, col, post)
+        # Remove the temporary constraint
+        self.s.pop()
+        
+        # Return 1 + count since `count` does not include the solution we found
+        return count + 1
+        
+    
+    def guess_cell(self, pre, post):
+        constraints = []
+        for i in range(self.N):
+            for j in range(self.N):
+                self.s.add(Implies(pre[(i, j)] != -1, pre[(i, j)] == post[(i, j)]))
+                constraints.append(pre[(i, j)] != post[(i, j)])
+                print(sudoku.possible_values(i,j, post))
+               
+        # Constraint enforcing that exactly one square has changed
+        self.s.add(PbEq([(x,1) for x in constraints], 1))
+
+
 def get_board_difference(board1, board2):
     for r, (row1, row2) in enumerate(zip(board1, board2)):
         for c, (val1, val2) in enumerate(zip(row1, row2)):
@@ -139,6 +194,7 @@ def apply_strategy(sudoku, initial, guesses=[], constraint_map=[]): #add fill in
     pre_board[last_r][last_c] = -1
     return steps + apply_strategy(sudoku, pre_board, guesses, constraint_map)
     
+
 
 if __name__ == "__main__":
     game_data_example = [

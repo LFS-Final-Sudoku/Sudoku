@@ -86,7 +86,7 @@ class Sudoku(object):
             for j in range(self.N):
                 self.s.add(Implies(pre[(i, j)] != -1, pre[(i, j)] == post[(i, j)]))
                 constraints.append(pre[(i, j)] != post[(i, j)])
-                print(self.possible_values(i,j,post))
+                #print(self.possible_values(i,j,post))
         # Constraint enforcing that exactly one square has changed
         self.s.add(PbEq([(x,1) for x in constraints], 1))
 

@@ -95,8 +95,6 @@ class Sudoku(object):
         if self.solve(post) is None:
             return 0
 
-        # This assumes that `self.variables` maps (row, col) -> Z3 var
-        # I totally made this up; use whatever dictionary/list you are using to store the Z3 vars
         value = post[(row, col)]
         
         # Push so that we can (temporarily) add a constraint

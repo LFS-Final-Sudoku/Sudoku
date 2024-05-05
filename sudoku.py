@@ -1,5 +1,6 @@
 from z3 import *
-from visualizer import main
+from visualizer import visualize
+from random import sample, randrange
 
 def get_grid(N, L, model):
     """Consumes `N` (size of the board), `L` (dict mapping indices to z3 variables), `model` (z3 model)
@@ -20,11 +21,10 @@ def print_grid(grid):
         print()
 
 class Sudoku(object):
-    def __init__(self, N, game_data):
+    def __init__(self, N):
         """Constructor of this class"""
-
+        assert int(N ** (1/2)) == N ** (1/2)
         self.N = N
-        self.game_data = game_data
 
         # Solver
         self.s = Solver()
@@ -38,8 +38,9 @@ class Sudoku(object):
         else:
             return None
     
-    def get_3x3_section(self, row, col):
-        return (row // 3) * 3 + (col // 3)
+    def get_mini_section(self, row, col):
+        section_size = self.N ** (1/2)
+        return (row // section_size) * section_size + (col // section_size)
     
     def create_board(self, known_cells = [], no_fill = True):
         self.board_count += 1
@@ -58,7 +59,7 @@ class Sudoku(object):
                     for l in range(self.N):
                         if i == k and j == l:
                             continue
-                        if i == k or j == l or self.get_3x3_section(i, j) == self.get_3x3_section(k, l):
+                        if i == k or j == l or self.get_mini_section(i, j) == self.get_mini_section(k, l):
                             self.s.add(Or(
                                 board[(i, j)] == -1, board[(k, l)] == -1, 
                                 board[(i, j)] != board[(k, l)]))
@@ -85,35 +86,15 @@ class Sudoku(object):
             for j in range(self.N):
                 self.s.add(Implies(pre[(i, j)] != -1, pre[(i, j)] == post[(i, j)]))
                 constraints.append(pre[(i, j)] != post[(i, j)])
+                print(self.possible_values(i,j,post))
         # Constraint enforcing that exactly one square has changed
         self.s.add(PbEq([(x,1) for x in constraints], 1))
 
-    # should return the count as well as the row, col so guess_cell can be constrained to
-    # row call with highest count 
-    # def possible_values(self, pre, post, row, col, constraints, constraint_list):
-    #     count = 0
-       
-    #     if sudoku.solve(post) is None:
-    #         return 0
-        
-    #     else:
-
-    #         constraint_list.append(post[(row, col)])
-    #         print(constraint_list)
-    #         self.s.push()
-    #         for value in constraint_list:
-    #             constraints.append(post[(row, col)] != value)
-    #         self.s.pop()
-    #         return 1 + sudoku.possible_values(pre, post, row, col, constraints, constraint_list)
-        
-
     def possible_values(self, row, col, post):
         # Base case: check if it is UNSAT, and if so, return 0
-        if sudoku.solve(post) is None:
+        if self.solve(post) is None:
             return 0
-            
-        # Otherwise, read the value in the model at this row and column
-        model = self.s.model()
+
         # This assumes that `self.variables` maps (row, col) -> Z3 var
         # I totally made this up; use whatever dictionary/list you are using to store the Z3 vars
         value = post[(row, col)]
@@ -126,21 +107,27 @@ class Sudoku(object):
         count = self.possible_values(row, col, post)
         # Remove the temporary constraint
         self.s.pop()
-        
-        # Return 1 + count since `count` does not include the solution we found
         return count + 1
-        
-    
-    def guess_cell(self, pre, post):
-        constraints = []
-        for i in range(self.N):
-            for j in range(self.N):
-                self.s.add(Implies(pre[(i, j)] != -1, pre[(i, j)] == post[(i, j)]))
-                constraints.append(pre[(i, j)] != post[(i, j)])
-                print(sudoku.possible_values(i,j, post))
-               
-        # Constraint enforcing that exactly one square has changed
-        self.s.add(PbEq([(x,1) for x in constraints], 1))
+
+def remove_values(board, num_to_remove):
+    board_copy = [row.copy() for row in board]
+    filled_locations = []
+    for r, row in enumerate(board_copy):
+        for c, val in enumerate(row):
+            if val != -1:
+                filled_locations.append((r, c))
+    to_remove = sample(filled_locations, min(num_to_remove, len(filled_locations)))
+    for r, c in to_remove:
+        board_copy[r][c] = -1
+    return board_copy
+
+def generate_random_starting_board(N, num_unfilled):
+    sudoku = Sudoku(N)
+    random_row = sample(range(1, N + 1), N)
+    known_cells = [[-1 for _ in range(N)] for _ in range(N)]
+    known_cells[randrange(0, N)] = random_row
+    board = sudoku.generate_solved_board(known_cells)
+    return remove_values(board, num_unfilled)
 
 
 def get_board_difference(board1, board2):
@@ -149,7 +136,7 @@ def get_board_difference(board1, board2):
             if val1 != val2:
                 return (r, c)
 
-def apply_strategy(sudoku, initial, guesses=[], constraint_map=[]): #add fill in strategy parameter later
+def apply_strategy(sudoku, initial, guesses=[], constraint_map=[], steps = 0, max_steps = 60, use_visualizer = True): #add fill in strategy parameter later
     sudoku.s.reset()
     pre = sudoku.create_board(initial)
     pre_board = sudoku.solve(pre)
@@ -161,15 +148,19 @@ def apply_strategy(sudoku, initial, guesses=[], constraint_map=[]): #add fill in
     # Add any constraints banning failed guessed values of squares
     for _, r, c, bad_value in constraint_map:
         sudoku.s.add(post[(r, c)] != bad_value)
-
-    steps = 1
+    steps += 1
+    if steps > max_steps:
+        print("out of steps")
+        return steps
     sudoku.guess_cell(pre, post)
     post_board = sudoku.solve(post)
-    main(pre_board)
+    if use_visualizer:
+        visualize(pre_board)
     while post_board is not None:
         pre_board = sudoku.solve(pre)
         difference = get_board_difference(pre_board, post_board)
-        main(post_board, [difference])
+        if use_visualizer:
+            visualize(post_board, [difference])
         if not any([-1 in row for row in post_board]):
             print("terminated by solving")
             return steps # board solved
@@ -177,6 +168,9 @@ def apply_strategy(sudoku, initial, guesses=[], constraint_map=[]): #add fill in
         pre = sudoku.create_board(post_board)
         post = sudoku.create_board()
         steps += 1
+        if steps > max_steps:
+            print("out of steps")
+            return steps
         sudoku.guess_cell(pre, post)
         post_board = sudoku.solve(post)
 
@@ -185,15 +179,27 @@ def apply_strategy(sudoku, initial, guesses=[], constraint_map=[]): #add fill in
         print("terminated with no solution")
         return steps # Cannot backtrack, so no solution
     (last_r, last_c), last_guess = guesses.pop()
+
     # Remove no longer relevant constraints
     while constraint_map and len(guesses) < constraint_map[-1][0]:
         constraint_map.pop() 
+
     # Add constraint banning the last guessed value for that square 
     constraint_map.append((len(guesses), last_r, last_c, last_guess))
+
     # Remove last guess and try to proceed again
     pre_board[last_r][last_c] = -1
-    return steps + apply_strategy(sudoku, pre_board, guesses, constraint_map)
-    
+    return apply_strategy(sudoku, pre_board, guesses, constraint_map, steps, max_steps, use_visualizer)
+
+def time_strategy(trials, N, num_unfilled, max_steps_per_trial):
+    sudoku = Sudoku(N)
+    trial_steps = []
+    while len(trial_steps) < trials:
+        board = generate_random_starting_board(N, num_unfilled)
+        steps_taken = apply_strategy(sudoku, board, max_steps=max_steps_per_trial, use_visualizer=False)
+        trial_steps.append(steps_taken)
+        print(f"Trial {len(trial_steps)}: {steps_taken}")
+    return sum(trial_steps) / trials
 
 
 if __name__ == "__main__":
@@ -215,7 +221,8 @@ if __name__ == "__main__":
     # backtracking example
     game_data_example = [[5, 1, 7, 6, 9, 8, 2, None, 4], [2, 8, 9, 1, None, None, 7, None, 6], [3, 4, 6, 2, 7, 5, 8, 9, 1], [6, 7, 2, 8, 4, 9, 3, 1, 5], [1, 3, 8, 5, 2, 6, 9, 4, 7], [9, 5, 4, 7, 1, 3, 6, 8, 2], [4, 9, 5, 3, 6, 2, 1, 7, 8], [7, 2, 3, 4, 8, 1, 5, 6, 9], [8, 6, 1, 9, 5, 7, 4, 2, 3]]
 
-    sudoku = Sudoku(9, game_data_example)
+    # apply_strategy(Sudoku(9), game_data_example)  
 
-    steps_taken = apply_strategy(sudoku, game_data_example)
-    print(f"Steps: {steps_taken}")
+    average_steps = time_strategy(5, 4, 10, 100)
+    print(f"Average steps: {average_steps}")
+

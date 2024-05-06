@@ -5,7 +5,6 @@ from random import sample, randrange
 def get_grid(N, L, model):
     """Consumes `N` (size of the board), `L` (dict mapping indices to z3 variables), `model` (z3 model)
     and returns a grid"""
-    
     return [[int(str(model.evaluate(L[i, j]))) for j in range(N)] for i in range(N)]
 
 def print_grid(grid):
@@ -22,13 +21,9 @@ def print_grid(grid):
 
 class Sudoku(object):
     def __init__(self, N):
-        """Constructor of this class"""
         assert int(N ** (1/2)) == N ** (1/2)
         self.N = N
-
-        # Solver
         self.s = Solver()
-
         self.board_count = 0
 
     def solve(self, board):
@@ -114,7 +109,6 @@ class Sudoku(object):
             for j in range(self.N):
                 self.s.add(Implies(pre[(i, j)] != -1, pre[(i, j)] == post[(i, j)]))
                 constraints.append(pre[(i, j)] != post[(i, j)])
-                #print(self.possible_values(i,j,post))
         # Constraint enforcing that exactly one square has changed
         self.s.add(PbEq([(x,1) for x in constraints], 1))
 
@@ -168,7 +162,6 @@ def generate_random_starting_board(N, num_unfilled):
     known_cells[randrange(0, N)] = random_row
     board = sudoku.generate_solved_board(known_cells)
     return remove_values(board, num_unfilled)
-
 
 def get_board_difference(board1, board2):
     for r, (row1, row2) in enumerate(zip(board1, board2)):
@@ -240,7 +233,6 @@ def time_strategy(sudoku, guess_strategy, trials, num_unfilled, max_steps_per_tr
         print(f"Trial {len(trial_steps)}: {steps_taken}")
     return sum(trial_steps) / trials
 
-
 if __name__ == "__main__":
     game_data_example = [
         [1, None, None, None, None, None, 8, None, None],
@@ -269,4 +261,3 @@ if __name__ == "__main__":
 
     # sudoku = Sudoku(4)
     # apply_strategy(sudoku, generate_random_starting_board(4, 5), sudoku.guess_least_possibilities)
-

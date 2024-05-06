@@ -30,7 +30,6 @@ def draw_board(screen, board, highlights):
         pygame.draw.line(screen, BLACK, (offset*SQUARE_SIZE, 0), (offset*SQUARE_SIZE, total_size), 4)
         pygame.draw.line(screen, BLACK, (0, offset*SQUARE_SIZE), (total_size, offset*SQUARE_SIZE), 4)
 
-
 def visualize(board, highlights = []):
     if board is None:
         return
@@ -50,7 +49,3 @@ def visualize(board, highlights = []):
         clock.tick(50)
 
     pygame.quit()
-
-
-
-

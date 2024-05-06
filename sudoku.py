@@ -114,6 +114,7 @@ class Sudoku(object):
             for j in range(self.N):
                 self.s.add(Implies(pre[(i, j)] != -1, pre[(i, j)] == post[(i, j)]))
                 constraints.append(pre[(i, j)] != post[(i, j)])
+                #print(self.possible_values(i,j,post))
         # Constraint enforcing that exactly one square has changed
         self.s.add(PbEq([(x,1) for x in constraints], 1))
 
@@ -131,6 +132,22 @@ class Sudoku(object):
                     possibility_counts[(i, j)] == min_possibilities,
                 ))
 
+    def possible_values(self, row, col, post):
+        # Base case: check if it is UNSAT, and if so, return 0
+        if self.solve(post) is None:
+            return 0
+
+        value = post[(row, col)]
+        
+        # Push so that we can (temporarily) add a constraint
+        self.s.push()
+        # Add the constraint that the value is actually different
+        self.s.add(post[(row, col)] != value)
+        # Count how many possibilities there are that are different from the value we recorded
+        count = self.possible_values(row, col, post)
+        # Remove the temporary constraint
+        self.s.pop()
+        return count + 1
 
 def remove_values(board, num_to_remove):
     board_copy = [row.copy() for row in board]

@@ -130,6 +130,9 @@ class Sudoku(object):
         self.s.add(PbEq([(x,1) for x in constraints], 1))
 
     def get_guess_least_possibilties_constraint(self, pre, post, possibility_counts):
+        """
+        Produce a constraint for guessing a square with least possible options.
+        """
         constraints = []
         # Variable to store minimum possibilities count among blank spaces
         min_possibilities = Int(f"min_possibilities {self.board_count}")
@@ -152,6 +155,9 @@ class Sudoku(object):
         self.s.add(self.get_guess_least_possibilties_constraint(pre, post, possibility_counts))
     
     def guess_forced(self, pre, post, possibility_counts, possibilities):
+        """
+        Fill in a cell with a forced value, if possible. Otherwise guess a cell with least possibilities.
+        """
         self.guess_cell(pre, post) # Exactly one blank cell must be filled
         can_guess_forced_condition = [] # Stores conditions for each square that are true iff. that square is forced
         then_constraints = [] # Constraints to apply if a square is forced.

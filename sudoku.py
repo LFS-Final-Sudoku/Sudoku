@@ -94,16 +94,16 @@ class Sudoku(object):
                         possibility_counts[(i, j)] == count
                     ))
                             
-        return board, possibility_counts
+        return board, possibility_counts, possibilities
         
     def generate_solved_board(self, known_cells = []):
-        board, _ = self.create_board(known_cells, False)
+        board, _, _ = self.create_board(known_cells, False)
         for r in range(self.N):
             for c in range(self.N):
                 self.s.add(board[(r, c)] != -1)
         return self.solve(board)
 
-    def guess_cell(self, pre, post, _):
+    def guess_cell(self, pre, post, *_):
         constraints = []
         for i in range(self.N):
             for j in range(self.N):
@@ -112,19 +112,92 @@ class Sudoku(object):
         # Constraint enforcing that exactly one square has changed
         self.s.add(PbEq([(x,1) for x in constraints], 1))
 
-    def guess_least_possibilities(self, pre, post, possibility_counts):
-        self.guess_cell(pre, post, possibility_counts) # Exactly one blank cell must be filled
+    def get_guess_least_possibilties_constraint(self, pre, post, possibility_counts):
+        constraints = []
         # Variable to store minimum possibilities count among blank spaces
         min_possibilities = Int(f"min_possibilities {self.board_count}")
         for i in range(self.N):
             for j in range(self.N):
                 # Enforce that the minimum is the smallest possibility count of unfilled squares
-                self.s.add(Implies(pre[(i, j)] == -1, min_possibilities <= possibility_counts[(i, j)]))
+                constraints.append(Implies(pre[(i, j)] == -1, min_possibilities <= possibility_counts[(i, j)]))
                 # Either the cell doesn't change or its possibility count is the minimum
-                self.s.add(Or(
+                constraints.append(Or(
                     pre[(i, j)] == post[(i, j)],
                     possibility_counts[(i, j)] == min_possibilities,
                 ))
+        return And(constraints)
+
+    def guess_least_possibilities(self, pre, post, possibility_counts, *_):
+        self.guess_cell(pre, post) # Exactly one blank cell must be filled
+        self.s.add(self.get_guess_least_possibilties_constraint(pre, post, possibility_counts))
+    
+    def guess_forced(self, pre, post, possibility_counts, possibilities):
+        self.guess_cell(pre, post) # Exactly one blank cell must be filled
+        can_guess_forced_condition = [] # Stores conditions for each square that are true iff. that square is forced
+        then_constraints = [] # Constraints to apply if a square is forced.
+        # If no square is forced, guess square with lowest possibility count.
+        else_constraint = self.get_guess_least_possibilties_constraint(pre, post, possibility_counts)
+        
+        for i in range(self.N):
+            for j in range(self.N):
+                cell_section = self.get_mini_section(i, j) 
+                for num_index, is_possible_var in enumerate(possibilities[(i, j)]):
+                    row_possibilities = []
+                    col_possibilities = []
+                    section_possibilities = []
+                    for k in range(self.N):
+                        # Get constraints corresponding with whether number is possible elsewhere in row
+                        if k != j:
+                            unfilled_and_possible = And(
+                                pre[(i, k)] == -1,
+                                possibilities[(i, k)][num_index]
+                            )
+                            row_possibilities.append(unfilled_and_possible)
+                        # Get constraints corresponding with whether number is possible elsewhere in column
+                        if k != i:
+                            unfilled_and_possible = And(
+                                pre[(k, j)] == -1,
+                                possibilities[(k, j)][num_index]
+                            )
+                            col_possibilities.append(unfilled_and_possible)
+                        # Get constraints corresponding with whether number is possible elsewhere in section
+                        for l in range(self.N):
+                            if (i != k or j != l) and cell_section == self.get_mini_section(k, l):
+                                unfilled_and_possible = And(
+                                    pre[(k, l)] == -1,
+                                    possibilities[(k, l)][num_index]
+                                )
+                                section_possibilities.append(unfilled_and_possible)
+                    
+                    # The current square is forced to be number n if it is unfilled, can legally be n, 
+                    # and either its row, col, or section has no other square that can be n.
+                    forced_condition = And(
+                        pre[(i, j)] == -1,
+                        is_possible_var,
+                        Or(
+                            Not(Or(row_possibilities)),
+                            Not(Or(col_possibilities)),
+                            Not(Or(section_possibilities))
+                        )
+                    )
+                    can_guess_forced_condition.append(forced_condition)
+
+                    # If there is a square that is forced, non-forced numbers should not be filled in.
+                    then_constraint = Implies(
+                        And(pre[(i, j)] == -1, Not(forced_condition)),
+                        post[(i, j)] != num_index + 1
+                    )
+                    then_constraints.append(then_constraint)
+
+        # If any square is forced, apply then_constraints to require a forced square to change;
+        # otherwise guess a square with lowest possibility count.
+        guess_forced_equation = If(
+            Or(can_guess_forced_condition),
+            And(then_constraints),
+            else_constraint
+        )
+        self.s.add(guess_forced_equation)
+
 
     def possible_values(self, row, col, post):
         # Base case: check if it is UNSAT, and if so, return 0
@@ -169,14 +242,17 @@ def get_board_difference(board1, board2):
             if val1 != val2:
                 return (r, c)
 
-def apply_strategy(sudoku, initial, guess_strategy, guesses=[], constraint_map=[], steps = 0, max_steps = 60, use_visualizer = True):
+def apply_strategy(sudoku, initial, guess_strategy, guesses=[], constraint_map=[], steps=0, max_steps=60, use_visualizer=True):
     sudoku.s.reset()
-    pre, pre_possibility_counts = sudoku.create_board(initial)
+    pre, pre_possibility_counts, pre_possibilities= sudoku.create_board(initial)
     pre_board = sudoku.solve(pre)
+    if pre_board is None:
+        print("terminated with no solution") # Initial board breaks sudoku rules.
+        return None
     if not any([-1 in row for row in pre_board]):
         print("terminated by solving")
         return steps # Board already solved
-    post, _ = sudoku.create_board()
+    post, _, _ = sudoku.create_board()
 
     # Add any constraints banning failed guessed values of squares
     for _, r, c, bad_value in constraint_map:
@@ -185,7 +261,7 @@ def apply_strategy(sudoku, initial, guess_strategy, guesses=[], constraint_map=[
     if steps > max_steps:
         print("out of steps")
         return steps
-    guess_strategy(pre, post, pre_possibility_counts)
+    guess_strategy(pre, post, pre_possibility_counts, pre_possibilities)
     post_board = sudoku.solve(post)
     if use_visualizer:
         visualize(pre_board)
@@ -198,19 +274,19 @@ def apply_strategy(sudoku, initial, guess_strategy, guesses=[], constraint_map=[
             print("terminated by solving")
             return steps # board solved
         guesses.append((difference, post_board[difference[0]][difference[1]]))
-        pre, pre_possibility_counts = sudoku.create_board(post_board)
-        post, _ = sudoku.create_board()
+        pre, pre_possibility_counts, _ = sudoku.create_board(post_board)
+        post, _, _ = sudoku.create_board()
         steps += 1
         if steps > max_steps:
             print("out of steps")
             return steps
-        guess_strategy(pre, post, pre_possibility_counts)
+        guess_strategy(pre, post, pre_possibility_counts, pre_possibilities)
         post_board = sudoku.solve(post)
 
     # Dead end reached if while loop terminates, so backtrack
     if len(guesses) == 0:
         print("terminated with no solution")
-        return steps # Cannot backtrack, so no solution
+        return None # Cannot backtrack, so no solution
     (last_r, last_c), last_guess = guesses.pop()
 
     # Remove no longer relevant constraints
@@ -246,18 +322,31 @@ if __name__ == "__main__":
         [None, 7, None, None, None, 3, 1, 9, None]
     ]
 
+    game_data_example = [
+        [6, 5, None, 1, None, 3, None, None, 7],
+        [7, None, 3, 5, 2, 4, None, None, 1],
+        [None, None, 4, 6, 7, None, 5, 2, 3],
+        [9, 3, 7, None, None, None, 6, 8, None],
+        [None, None, 5, 8, 3, 6, None, 7, 9],
+        [None, None, 6, None, None, 7, None, None, None],
+        [5, 7, None, None, 1, None, 2, None, 6],
+        [4, 6, 1, None, None, 2, 7, None, 5],
+        [None, None, None, 7, 6, None, None, 1, 8]
+        ]
+
+
     #one from solved example
     # game_data_example = [[5, None, 7, 6, 9, 8, 2, 3, 4], [2, 8, 9, 1, 3, 4, 7, 5, 6], [3, 4, 6, 2, 7, 5, 8, 9, 1], [6, 7, 2, 8, 4, 9, 3, 1, 5], [1, 3, 8, 5, 2, 6, 9, 4, 7], [9, 5, 4, 7, 1, 3, 6, 8, 2], [4, 9, 5, 3, 6, 2, 1, 7, 8], [7, 2, 3, 4, 8, 1, 5, 6, 9], [8, 6, 1, 9, 5, 7, 4, 2, 3]]
     
     # backtracking example
-    # game_data_example = [[5, 1, 7, 6, 9, 8, 2, None, 4], [2, 8, 9, 1, None, None, 7, None, 6], [3, 4, 6, 2, 7, 5, 8, 9, 1], [6, 7, 2, 8, 4, 9, 3, 1, 5], [1, 3, 8, 5, 2, 6, 9, 4, 7], [9, 5, 4, 7, 1, 3, 6, 8, 2], [4, 9, 5, 3, 6, 2, 1, 7, 8], [7, 2, 3, 4, 8, 1, 5, 6, 9], [8, 6, 1, 9, 5, 7, 4, 2, 3]]
+    # game_data_example = [[5, 1, 7, 6, None, 8, 2, None, 4], [2, 8, 9, 1, None, None, 7, 5, 6], [3, 4, 6, 2, 7, 5, 8, 9, 1], [6, 7, 2, 8, 4, 9, 3, 1, 5], [1, 3, 8, 5, 2, 6, 9, 4, 7], [9, 5, 4, 7, 1, 3, 6, 8, 2], [4, 9, 5, 3, 6, 2, 1, 7, 8], [7, 2, 3, 4, 8, 1, 5, 6, 9], [8, 6, 1, 9, 5, 7, 4, 2, 3]]
+
+    sudoku = Sudoku(9)
+    print(apply_strategy(sudoku, game_data_example, sudoku.guess_forced, use_visualizer=False, max_steps= 200)) 
 
     # sudoku = Sudoku(9)
-    # apply_strategy(sudoku, game_data_example, sudoku.guess_least_possibilities) 
-     
-    sudoku = Sudoku(4)
-    average_steps = time_strategy(sudoku, sudoku.guess_least_possibilities, 5, 10, 100)
-    print(f"Average steps: {average_steps}")
+    # average_steps = time_strategy(sudoku, sudoku.guess_least_possibilities, 5, 18, 100)
+    # print(f"Average steps: {average_steps}")
 
     # sudoku = Sudoku(4)
     # apply_strategy(sudoku, generate_random_starting_board(4, 5), sudoku.guess_least_possibilities)

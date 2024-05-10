@@ -2,9 +2,10 @@ import time
 from sudoku import time_strategy, Sudoku
 import matplotlib.pyplot as plt
 
-## Strategy
+## Strategy Mapping
 ## 0 = random
 ## 1 = guess least possibilities
+## 2 = guess forced
 
 def call_time_strategy(sudoku, guess_strategy, trials, num_unfilled, max_steps_per_trial):
     start = time.time()
@@ -17,8 +18,9 @@ def call_time_strategy(sudoku, guess_strategy, trials, num_unfilled, max_steps_p
 def get_sudoku_and_strategy(grid_size, strategy):
     sudoku = Sudoku(grid_size)
 
-    if strategy == 0: guess_strategy = None
+    if   strategy == 0: guess_strategy = sudoku.guess_cell
     elif strategy == 1: guess_strategy = sudoku.guess_least_possibilities
+    elif strategy == 2: guess_strategy = sudoku.guess_forced
     else: raise ValueError("Invalid strategy")
 
     return sudoku, guess_strategy

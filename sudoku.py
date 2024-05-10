@@ -224,27 +224,6 @@ class Sudoku(object):
         )
         self.s.add(guess_forced_equation)
 
-
-    def possible_values(self, row, col, post):
-        """
-        Recursively count the number of possible values for a cell.
-        """
-        # Base case: if UNSAT, return 0
-        if self.solve(post) is None:
-            return 0
-
-        value = post[(row, col)]
-
-        # Push so that we can (temporarily) add a constraint
-        self.s.push()
-        # Add the constraint that the value is actually different
-        self.s.add(post[(row, col)] != value)
-        # Count how many possibilities there are that are different from the value we recorded
-        count = self.possible_values(row, col, post)
-        # Remove the temporary constraint
-        self.s.pop()
-        return count + 1
-
 def remove_values(board, num_to_remove):
     """
     Removes random values from a solved sudoku board to generate an unsolved board.

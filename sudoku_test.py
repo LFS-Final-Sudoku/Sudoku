@@ -82,11 +82,15 @@ def test_time_strategy(sudoku, num_unfilled_random):
      steps_guess_cell = time_strategy(sudoku, sudoku.guess_cell, 1, num_unfilled_random, 1)
      # number of steps for 1 sudoku game with guess_least_possible strategy
      steps_guess_least_possibilities = time_strategy(sudoku, sudoku.guess_least_possibilities, 1, num_unfilled_random, 1)
+     
+     steps_guess_forced = time_strategy(sudoku, sudoku.guess_forced, 1, num_unfilled_random, 1)
 
      # creates an upper bound for solving based on worst case running time 
      assert (steps_guess_cell <= SUDOKU_BOARD_SIZE**(SUDOKU_SQUARE_COUNT -num_filled))
      # asserts that guess_least_possilities takes fewer or equal steps as guess_cell
      assert (steps_guess_least_possibilities <= steps_guess_cell)
+
+     assert (steps_guess_forced <= steps_guess_least_possibilities)
 
     
 if __name__ == "__main__":

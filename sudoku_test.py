@@ -35,6 +35,7 @@ def test_generate_solved_board(sudoku):
 
 
 SUDOKU_BOARD_SIZE = 4
+SUDOKU_SQUARE_COUNT = SUDOKU_BOARD_SIZE*SUDOKU_BOARD_SIZE
 
 # property based test that ensures the correct number of values are removed
 random_ints = st.integers(0, SUDOKU_BOARD_SIZE)
@@ -58,7 +59,7 @@ def test_remove_values(sudoku, random_int):
 
 
 #property based test than ensures random starting board has the correct number of blanks
-random_ints = st.integers(0, SUDOKU_BOARD_SIZE*SUDOKU_BOARD_SIZE)
+random_ints = st.integers(0, SUDOKU_SQUARE_COUNT)
 @given(random_ints)
 @settings(deadline=None, max_examples=20)
 def test_generate_random_starting_board(sudoku, random_int):
@@ -70,6 +71,23 @@ def test_generate_random_starting_board(sudoku, random_int):
                     blank_count = blank_count +1 
     assert (blank_count == random_int)
 
+# property based test for comparting strategy steps
+num_unfilled_random = st.integers(0, SUDOKU_SQUARE_COUNT)
+@given(num_unfilled_random )
+@settings(deadline=None, max_examples=20)
+def test_time_strategy(sudoku, num_unfilled_random):
+     # number of filled squares on starting board
+     num_filled = SUDOKU_SQUARE_COUNT - num_unfilled_random
+     # number of steps for 1 sudoku game with guess_cell strategy
+     steps_guess_cell = time_strategy(sudoku, sudoku.guess_cell, 1, num_unfilled_random, 1)
+     # number of steps for 1 sudoku game with guess_least_possible strategy
+     steps_guess_least_possibilities = time_strategy(sudoku, sudoku.guess_least_possibilities, 1, num_unfilled_random, 1)
+
+     # creates an upper bound for solving based on worst case running time 
+     assert (steps_guess_cell <= SUDOKU_BOARD_SIZE**(SUDOKU_SQUARE_COUNT -num_filled))
+     # asserts that guess_least_possilities takes fewer or equal steps as guess_cell
+     assert (steps_guess_least_possibilities <= steps_guess_cell)
+
     
 if __name__ == "__main__":
     sudoku = Sudoku(4)
@@ -78,6 +96,7 @@ if __name__ == "__main__":
     test_generate_solved_board(sudoku)
     test_remove_values(sudoku)
     test_generate_random_starting_board(sudoku)
+    test_time_strategy(sudoku)
     print("All Tests Passed!")
 
    

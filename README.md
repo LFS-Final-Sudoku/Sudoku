@@ -1,7 +1,7 @@
 # Sudoku
 
-Overview: \\
-General:\\ 
+Overview: <br />
+General:<br />
 This project is an analysis of Sudoku solving strategies and how they compare to each other. The strategies we implemented were arbitrarily picking squares to fill guesses into, filling in squares with the fewest possible values first, and filling in squares that are forced to be a particular value before guessing a square with fewest possibilities as before. For each of these strategies, the model backtracks when it reaches a dead end where no moves are legal, undoing guesses until progress can be made by choosing a different guess. This guarantees that any of these strategies will solve any solvable Sudoku board given enough steps, though their efficiency varies greatly.
 
 Visualization:
